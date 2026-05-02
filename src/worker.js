@@ -55,6 +55,10 @@ export default {
           return cachedJson(request, ctx, 5 * 60, () => searchNominatim(url));
         case "/api/reverse":
           return cachedJson(request, ctx, 24 * 60 * 60, () => reverseNominatim(url));
+        case "/api/soil":
+          return cachedJson(request, ctx, 60 * 60, () => fetchSoilData(url));
+        case "/api/irrigation":
+          return cachedJson(request, ctx, 60, () => calculateIrrigationAdvice(url));
         case "/api/health":
           return json({ ok: true, ts: Date.now() });
         default:
@@ -494,6 +498,200 @@ async function searchNominatim(url) {
   return { results, query, count: results.length };
 }
 
+// =============================================================================
+// SOIL & IRRIGATION CALCULATOR
+// =============================================================================
+// Extract soil temperature and moisture from Open-Meteo
+// Calculate irrigation needs based on ET₀ + crop type
+
+function extractSoilData(openMeteoData) {
+  if (!openMeteoData?.hourly) return null;
+
+  const now = new Date();
+  const hourIndex = Math.floor(now.getHours()); // Nearest hour
+
+  return {
+    soil_temp_0_10cm: openMeteoData.hourly.soil_temperature_0_to_10cm?.[hourIndex],
+    soil_temp_10_40cm: openMeteoData.hourly.soil_temperature_10_to_40cm?.[hourIndex],
+    soil_temp_40_100cm: openMeteoData.hourly.soil_temperature_40_to_100cm?.[hourIndex],
+    soil_moisture_0_1cm: openMeteoData.hourly.soil_moisture_0_to_1cm?.[hourIndex],
+    soil_moisture_1_3cm: openMeteoData.hourly.soil_moisture_1_to_3cm?.[hourIndex],
+    soil_moisture_9_27cm: openMeteoData.hourly.soil_moisture_9_to_27cm?.[hourIndex],
+  };
+}
+
+// Crop coefficients (Kc) by growth stage (Annual crops)
+const cropCoefficients = {
+  rice: { initial: 1.1, dev: 1.1, mid: 1.15, late: 0.9 },
+  cotton: { initial: 0.5, dev: 0.7, mid: 1.05, late: 0.75 },
+  sugarcane: { initial: 0.4, dev: 0.7, mid: 1.1, late: 0.8 },
+  maize: { initial: 0.3, dev: 0.7, mid: 1.15, late: 0.6 },
+  groundnut: { initial: 0.4, dev: 0.7, mid: 1.0, late: 0.6 },
+  wheat: { initial: 0.3, dev: 0.7, mid: 1.15, late: 0.4 },
+  tomato: { initial: 0.6, dev: 0.7, mid: 1.15, late: 0.8 },
+  onion: { initial: 0.6, dev: 0.8, mid: 1.0, late: 0.8 },
+};
+
+// Perennial crop Kc by age (years)
+const perennialCropKc = {
+  arecanut: [
+    { ageMin: 0, ageMax: 1, kc: 0.45 },      // Nursery
+    { ageMin: 1, ageMax: 3, kc: 0.60 },      // Juvenile
+    { ageMin: 3, ageMax: 5, kc: 0.80 },      // Young bearing transition
+    { ageMin: 5, ageMax: 15, kc: 1.00 },     // Mature bearing
+    { ageMin: 15, ageMax: 25, kc: 1.05 },    // Peak bearing
+    { ageMin: 25, ageMax: 50, kc: 0.95 },    // Declining
+    { ageMin: 50, ageMax: 999, kc: 0.85 },   // Very old (rare)
+  ],
+  coconut: [
+    { ageMin: 0, ageMax: 1, kc: 0.50 },      // Nursery (critical water period!)
+    { ageMin: 1, ageMax: 3, kc: 0.70 },      // Immature
+    { ageMin: 3, ageMax: 5, kc: 0.85 },      // Pre-bearing
+    { ageMin: 5, ageMax: 10, kc: 1.00 },     // Young bearing
+    { ageMin: 10, ageMax: 60, kc: 1.15 },    // Mature & peak bearing (very water-hungry!)
+    { ageMin: 60, ageMax: 999, kc: 1.00 },   // Declining (80+ years old, rare)
+  ],
+};
+
+function calculateIrrigation(et0, cropType = "rice", stage = "mid", rainfallMm = 0) {
+  if (!et0) {
+    return { error: "Invalid ET₀" };
+  }
+
+  let kc = 0;
+  let cropName = cropType;
+
+  // Check if perennial crop (needs age input)
+  if (perennialCropKc[cropType]) {
+    return { 
+      error: "Perennial crop requires age parameter. Use /api/irrigation?...&crop=arecanut&age=5" 
+    };
+  }
+
+  // Annual crop (use stage-based Kc)
+  if (cropCoefficients[cropType]) {
+    kc = cropCoefficients[cropType][stage] || cropCoefficients[cropType].mid;
+  } else {
+    return { error: `Unknown crop type: ${cropType}` };
+  }
+
+  const etAdjusted = et0 * kc;
+  const soilLosses = 0.5; // mm/day seepage (typical)
+
+  const irrigationNeeded = Math.max(0, etAdjusted - rainfallMm - soilLosses);
+
+  return {
+    et0: et0.toFixed(2),
+    kc: kc.toFixed(2),
+    et0_adjusted: etAdjusted.toFixed(2),
+    rainfall_mm: rainfallMm.toFixed(2),
+    soil_losses_mm: soilLosses.toFixed(2),
+    irrigation_mm_per_day: irrigationNeeded.toFixed(2),
+    irrigation_m3_per_hectare: (irrigationNeeded * 10).toFixed(1), // 1 mm = 10 m³/ha
+  };
+}
+
+// Get Kc for perennial crop based on age
+function getPerennialKc(cropType, ageYears) {
+  if (!perennialCropKc[cropType]) {
+    return { error: `${cropType} is not a perennial crop` };
+  }
+
+  const stages = perennialCropKc[cropType];
+  
+  // Find matching age range
+  for (const stage of stages) {
+    if (ageYears >= stage.ageMin && ageYears < stage.ageMax) {
+      return {
+        crop: cropType,
+        age: ageYears,
+        kc: stage.kc,
+        stage_name: getPerennialStageName(cropType, ageYears),
+        description: getPerennialStageDescription(cropType, ageYears),
+      };
+    }
+  }
+
+  // If age is beyond max, use last stage
+  const lastStage = stages[stages.length - 1];
+  return {
+    crop: cropType,
+    age: ageYears,
+    kc: lastStage.kc,
+    stage_name: "Very Old",
+    description: "Plant is in senescence (decline) stage",
+  };
+}
+
+// Helper: Get stage name for perennial crops
+function getPerennialStageName(cropType, age) {
+  if (cropType === "arecanut") {
+    if (age < 1) return "Nursery";
+    if (age < 3) return "Juvenile";
+    if (age < 5) return "Young Bearing";
+    if (age < 15) return "Mature Bearing";
+    if (age < 25) return "Peak Bearing";
+    if (age < 50) return "Declining";
+    return "Very Old";
+  }
+
+  if (cropType === "coconut") {
+    if (age < 1) return "Nursery";
+    if (age < 3) return "Immature";
+    if (age < 5) return "Pre-bearing";
+    if (age < 10) return "Young Bearing";
+    if (age < 60) return "Mature & Peak";
+    return "Declining";
+  }
+
+  return "Unknown";
+}
+
+// Helper: Get stage description
+function getPerennialStageDescription(cropType, age) {
+  if (cropType === "arecanut") {
+    if (age < 1) return "Very small plant, minimal water needs (0.45 × ET₀)";
+    if (age < 3) return "Young plant growing, low water (0.60 × ET₀)";
+    if (age < 5) return "Transitioning to production (0.80 × ET₀)";
+    if (age < 15) return "Good production, steady water (1.00 × ET₀)";
+    if (age < 25) return "Peak production period (1.05 × ET₀)";
+    if (age < 50) return "Production declining, still healthy (0.95 × ET₀)";
+    return "Very old plant, may be uneconomical";
+  }
+
+  if (cropType === "coconut") {
+    if (age < 1) return "CRITICAL WATER PERIOD! Seedling needs protection (0.50 × ET₀)";
+    if (age < 3) return "Immature, building roots (0.70 × ET₀)";
+    if (age < 5) return "Approaching first flowering (0.85 × ET₀)";
+    if (age < 10) return "Early production (1.00 × ET₀)";
+    if (age < 60) return "PEAK PRODUCTION! Very water-hungry (1.15 × ET₀) - frequent irrigation needed!";
+    return "Aging plant, reduced production (1.00 × ET₀)";
+  }
+
+  return "No description available";
+}
+
+// Soil temperature interpretation
+function interpretSoilTemp(tempC) {
+  if (tempC < 10) return { status: "Cold", meaning: "Too cold for germination", advice: "Wait to plant" };
+  if (tempC < 13) return { status: "Cool", meaning: "Slow germination", advice: "Delay planting 1-2 weeks" };
+  if (tempC < 16) return { status: "Moderate", meaning: "Germination possible", advice: "Plant early varieties" };
+  if (tempC < 24) return { status: "Ideal", meaning: "Optimal for most crops", advice: "Plant now" };
+  if (tempC < 28) return { status: "Warm", meaning: "Good growth", advice: "Water more frequently" };
+  if (tempC < 32) return { status: "Hot", meaning: "Stress risk", advice: "Increase irrigation, add mulch" };
+  return { status: "Very Hot", meaning: "Critical heat stress", advice: "Emergency irrigation needed" };
+}
+
+// Soil moisture decision
+function interpretSoilMoisture(moistureRatio) {
+  // Ratio of current to field capacity (0-1 scale)
+  if (moistureRatio > 0.85) return { status: "Wet", advice: "Risk of waterlogging, ensure drainage" };
+  if (moistureRatio > 0.65) return { status: "Adequate", advice: "Good moisture, monitor" };
+  if (moistureRatio > 0.5) return { status: "Moist", advice: "Can wait 1-2 days before irrigating" };
+  if (moistureRatio > 0.35) return { status: "Dry", advice: "Irrigate within 1 day" };
+  return { status: "Very Dry", advice: "Urgent irrigation needed" };
+}
+
 async function reverseNominatim(url) {
   const lat = parseFloat(url.searchParams.get("lat") ?? "0");
   const lon = parseFloat(url.searchParams.get("lon") ?? "0");
@@ -529,6 +727,162 @@ async function reverseNominatim(url) {
     name: data.name || data.address?.village || data.address?.town || data.address?.city || "Unknown",
     address: data.address,
     display_name: data.display_name,
+  };
+}
+
+// =============================================================================
+// SOIL DATA ENDPOINT
+// =============================================================================
+
+async function fetchSoilData(url) {
+  const lat = url.searchParams.get("lat");
+  const lon = url.searchParams.get("lon");
+
+  if (!lat || !lon) throw new Error("Missing lat/lon");
+
+  // Get Open-Meteo data (includes soil temp & moisture)
+  const params = new URLSearchParams({
+    latitude: lat,
+    longitude: lon,
+    hourly: "soil_temperature_0_to_10cm,soil_temperature_10_to_40cm,soil_temperature_40_to_100cm,soil_moisture_0_to_1cm,soil_moisture_1_to_3cm,soil_moisture_9_to_27cm",
+    timezone: "Asia/Kolkata",
+  });
+
+  const r = await fetch(
+    `https://api.open-meteo.com/v1/forecast?${params}`,
+    { signal: AbortSignal.timeout(8000) }
+  );
+
+  if (!r.ok) throw new Error(`Open-Meteo ${r.status}`);
+  const data = await r.json();
+
+  const soilData = extractSoilData(data);
+
+  return {
+    lat: parseFloat(lat),
+    lon: parseFloat(lon),
+    timestamp: new Date().toISOString(),
+    soil: {
+      temperature: {
+        surface_0_10cm: soilData.soil_temp_0_10cm ? parseFloat(soilData.soil_temp_0_10cm.toFixed(1)) : null,
+        root_zone_10_40cm: soilData.soil_temp_10_40cm ? parseFloat(soilData.soil_temp_10_40cm.toFixed(1)) : null,
+        deep_40_100cm: soilData.soil_temp_40_100cm ? parseFloat(soilData.soil_temp_40_100cm.toFixed(1)) : null,
+        interpretation: soilData.soil_temp_10_40cm
+          ? interpretSoilTemp(soilData.soil_temp_10_40cm)
+          : null,
+      },
+      moisture: {
+        surface_0_1cm: soilData.soil_moisture_0_1cm ? parseFloat((soilData.soil_moisture_0_1cm * 100).toFixed(1)) : null,
+        shallow_1_3cm: soilData.soil_moisture_1_3cm ? parseFloat((soilData.soil_moisture_1_3cm * 100).toFixed(1)) : null,
+        root_zone_9_27cm: soilData.soil_moisture_9_27cm ? parseFloat((soilData.soil_moisture_9_27cm * 100).toFixed(1)) : null,
+        interpretation: soilData.soil_moisture_9_27cm
+          ? interpretSoilMoisture(soilData.soil_moisture_9_27cm / 0.4) // Normalize to 0-1 scale
+          : null,
+      },
+    },
+  };
+}
+
+// =============================================================================
+// IRRIGATION ADVICE ENDPOINT
+// =============================================================================
+
+async function calculateIrrigationAdvice(url) {
+  const lat = url.searchParams.get("lat");
+  const lon = url.searchParams.get("lon");
+  const cropType = url.searchParams.get("crop") || "rice";
+  const stage = url.searchParams.get("stage") || "mid";
+  const age = url.searchParams.get("age");
+
+  if (!lat || !lon) throw new Error("Missing lat/lon");
+
+  // Check if perennial crop
+  const isPerennial = perennialCropKc[cropType];
+
+  if (isPerennial && !age) {
+    throw new Error(`${cropType} is a perennial crop. Please provide age parameter: &age=5`);
+  }
+
+  let et0 = 4.0; // Default fallback
+  let rainfall = 0;
+
+  try {
+    const params = new URLSearchParams({
+      latitude: lat,
+      longitude: lon,
+      hourly: "evapotranspiration,precipitation",
+      daily: "precipitation_sum",
+      timezone: "Asia/Kolkata",
+    });
+
+    const r = await fetch(
+      `https://api.open-meteo.com/v1/forecast?${params}`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+
+    if (r.ok) {
+      const data = await r.json();
+      const now = new Date();
+      
+      et0 = data.hourly?.evapotranspiration?.[now.getHours()] || 4.0;
+      rainfall = data.daily?.precipitation_sum?.[0] || 0;
+    }
+  } catch (e) {
+    // Silently fail, use defaults
+  }
+
+  let irrigation, kcData;
+
+  if (isPerennial) {
+    // Perennial crop with age
+    const ageNum = parseFloat(age);
+    kcData = getPerennialKc(cropType, ageNum);
+    
+    if (kcData.error) {
+      throw new Error(kcData.error);
+    }
+
+    const kc = kcData.kc;
+    const etAdjusted = et0 * kc;
+    const soilLosses = 0.5;
+    const irrigationNeeded = Math.max(0, etAdjusted - rainfall - soilLosses);
+
+    irrigation = {
+      et0: et0.toFixed(2),
+      kc: kc.toFixed(2),
+      et0_adjusted: etAdjusted.toFixed(2),
+      rainfall_mm: rainfall.toFixed(2),
+      soil_losses_mm: soilLosses.toFixed(2),
+      irrigation_mm_per_day: irrigationNeeded.toFixed(2),
+      irrigation_m3_per_hectare: (irrigationNeeded * 10).toFixed(1),
+      crop_age_years: parseFloat(age).toFixed(1),
+      crop_stage: kcData.stage_name,
+      stage_description: kcData.description,
+    };
+  } else {
+    // Annual crop with stage
+    irrigation = calculateIrrigation(et0, cropType, stage, rainfall);
+  }
+
+  return {
+    lat: parseFloat(lat),
+    lon: parseFloat(lon),
+    crop: cropType,
+    ...(isPerennial ? { age: parseFloat(age).toFixed(1) } : { stage: stage }),
+    timestamp: new Date().toISOString(),
+    weather: {
+      et0_mm_day: et0.toFixed(2),
+      rainfall_mm_day: rainfall.toFixed(2),
+    },
+    irrigation_advice: irrigation,
+    crops_supported: {
+      annual: Object.keys(cropCoefficients),
+      perennial: Object.keys(perennialCropKc),
+    },
+    stages_available: isPerennial ? "age-based" : ["initial", "dev", "mid", "late"],
+    note: isPerennial 
+      ? `${cropType} at ${age} years old. Kc automatically calculated based on growth stage.`
+      : "For accurate irrigation, combine with soil moisture monitoring",
   };
 }
 
