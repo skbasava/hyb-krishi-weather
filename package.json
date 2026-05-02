@@ -1,0 +1,15 @@
+{
+  "name": "krishi-weather",
+  "version": "1.0.0",
+  "description": "4-source agro-meteorological ensemble with OpenStreetMap location picker",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  }
+}
