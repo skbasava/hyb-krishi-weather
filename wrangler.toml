@@ -1,7 +1,22 @@
 name = "krishi-weather"
+type = "javascript"
 main = "src/worker.js"
-compatibility_date = "2025-09-01"
-compatibility_flags = ["nodejs_compat"]
+compatibility_date = "2026-05-02"
 
-[observability]
-enabled = true
+[env.production]
+routes = [
+  { pattern = "krishi.node-lab.in/*", zone_name = "node-lab.in" }
+]
+vars = { ENVIRONMENT = "production" }
+
+[[r2_buckets]]
+binding = "CACHE"
+bucket_name = "krishi-cache"
+preview_bucket_name = "krishi-cache-preview"
+
+[build]
+command = "echo 'No build step needed'"
+cwd = "./"
+
+[build.upload]
+format = "service-worker"
