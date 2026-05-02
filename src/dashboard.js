@@ -375,6 +375,680 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
       height: 250px;
     }
   }
+  /* ============================================================
+   PHASE 1 FRONTEND - FORECAST STYLES
+   Add to your dashboard.html <style> section
+   ============================================================ */
+
+/* ===== FORECAST TIMELINE SECTION ===== */
+#forecast-timeline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(99, 102, 241, 0.05) 100%);
+  border-radius: 12px;
+  overflow-x: auto;
+}
+
+/* Forecast Card */
+.forecast-card {
+  cursor: pointer;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: white;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  min-width: 100px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  position: relative;
+}
+
+.forecast-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  transform: translateY(-2px);
+}
+
+.forecast-card.selected {
+  border-color: #2563eb;
+  background: linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.day-header {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.day-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.date-small {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 0.25rem;
+}
+
+.card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.temperature {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.temp-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.temp-unit {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.rainfall-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.rainfall-amount {
+  font-size: 0.875rem;
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.rainfall-amount .unit {
+  font-size: 0.65rem;
+  color: #9ca3af;
+}
+
+.rainfall-prob {
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+.confidence-badge {
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  text-align: center;
+  margin-top: auto;
+}
+
+.confidence-badge.high {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.confidence-badge.moderate {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.confidence-badge.low {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.risk-indicators {
+  text-align: center;
+  font-size: 1rem;
+  margin-top: 0.5rem;
+  min-height: 1.5rem;
+}
+
+/* ===== FORECAST DETAIL SECTION ===== */
+#forecast-detail-section {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.detail-header {
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.detail-header h3 {
+  font-size: 1.75rem;
+  color: #1f2937;
+  margin: 0 0 0.5rem 0;
+}
+
+.ensemble-quality {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.detail-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.25rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.parameter-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.param {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.param.large {
+  flex: 1;
+}
+
+.label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.confidence {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.confidence.high {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.confidence.moderate {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.confidence.low {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.range-display {
+  font-size: 0.85rem;
+  color: #6b7280;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f3f4f6;
+  margin-top: 0.75rem;
+}
+
+.detail-info {
+  font-size: 0.85rem;
+  color: #6b7280;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.soil-meter {
+  background: #e5e7eb;
+  height: 24px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0.75rem 0;
+}
+
+.meter-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 100%);
+  transition: width 0.5s ease;
+}
+
+/* ===== RISK ASSESSMENT SECTION ===== */
+.risk-section {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.risk-section h4 {
+  margin: 0 0 1rem 0;
+  color: #1f2937;
+  font-size: 1rem;
+}
+
+.risk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.risk-item {
+  text-align: center;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 2px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.risk-item.safe {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.risk-item.alert {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.risk-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.risk-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.risk-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #166534;
+}
+
+.risk-item.alert .risk-status {
+  color: #991b1b;
+}
+
+/* ===== IRRIGATION ADVISORY ===== */
+.irrigation-advisory {
+  background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+  border: 2px solid #3b82f6;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.irrigation-advisory h4 {
+  margin: 0 0 1rem 0;
+  color: #1e40af;
+  font-size: 1rem;
+}
+
+.advisory-main {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.suggested-amount {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.suggested-amount .label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.suggested-amount .value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #3b82f6;
+}
+
+.suggested-amount .unit {
+  font-size: 1rem;
+  color: #6b7280;
+  margin-left: 0.5rem;
+}
+
+.advisory-reason {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.advisory-reason strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #1f2937;
+}
+
+.advisory-reason p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* ===== CONTRIBUTIONS SECTION ===== */
+.contributions-section {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.contributions-section h4 {
+  margin: 0 0 1rem 0;
+  color: #1f2937;
+  font-size: 1rem;
+}
+
+.contributions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.contribution-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.contribution-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.source-name {
+  font-weight: 600;
+  color: #374151;
+}
+
+.source-weight {
+  font-size: 0.875rem;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+}
+
+.contribution-bar {
+  background: #e5e7eb;
+  height: 20px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 100%);
+  transition: width 0.5s ease;
+}
+
+/* ===== ENSEMBLE QUALITY SECTION ===== */
+#ensemble-quality {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.quality-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 1rem;
+}
+
+.quality-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: #1f2937;
+}
+
+.skill-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+.skill-badge.high {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.skill-badge.moderate {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.skill-badge.low {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.quality-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.stat .label {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.stat .value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.sources-status {
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.sources-status h5 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.source-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.source-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.source-indicator.fulfilled {
+  background: #22c55e;
+}
+
+.source-indicator.rejected {
+  background: #ef4444;
+}
+
+.source-label {
+  flex: 1;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.status-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background: #f3f4f6;
+  color: #374151;
+  font-weight: 600;
+}
+
+/* ===== LOADING STATE ===== */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== ERROR STATE ===== */
+.error-message {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #dc2626;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+
+@media (max-width: 768px) {
+  #forecast-timeline {
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+  
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .risk-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .advisory-main {
+    grid-template-columns: 1fr;
+  }
+  
+  .forecast-card {
+    min-width: 75px;
+    padding: 0.6rem;
+  }
+  
+  .temp-value {
+    font-size: 1.25rem;
+  }
+  
+  .quality-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  #forecast-timeline {
+    gap: 0.4rem;
+    padding: 0.5rem;
+  }
+  
+  .forecast-card {
+    min-width: 70px;
+    padding: 0.5rem;
+  }
+  
+  .risk-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .detail-card {
+    padding: 1rem;
+  }
+  
+  .temp-value {
+    font-size: 1.1rem;
+  }
+}
 </style>
 </head>
 <body>
@@ -425,6 +1099,16 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   </header>
   <div id="ensemble-params">
     <div class="skeleton">loading…</div>
+  </div>
+</section>
+<section class="dashboard-section">
+  <h2>📅 7-Day Forecast</h2>
+  <div id="forecast-section">
+    <div id="forecast-timeline"></div>
+  </div>
+  <div id="forecast-detail-section">
+    <div id="forecast-detail"></div>
+    <div id="ensemble-quality"></div>
   </div>
 </section>
 <section id="sources-section" style="display: none;">
@@ -958,7 +1642,257 @@ function setStatus(kind, text) {
   
   updateCoordDisplay();
   load();
+  loadForecast(state.lat, state.lon, 'cotton');  // NOW it exists!
 })();
+
+// ===== FORECAST DATA LOADING =====
+async function loadForecast(lat, lon, crop) {
+  if (!crop) crop = 'cotton';
+  try {
+    showLoadingState('forecast-section');
+    
+    var url = '/api/forecast/7-day?lat=' + lat + '&lon=' + lon + '&crop=' + crop;
+    var response = await fetch(url);
+    
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    
+    var data = await response.json();
+    
+    if (data.error) {
+      showError('forecast-section', data.error);
+      return;
+    }
+    
+    renderForecastTimeline(data.forecast);
+    
+    if (data.forecast && data.forecast.length > 0) {
+      renderForecastDetail(data.forecast[0], data.ensemble_stats);
+    }
+    
+    renderEnsembleQuality(data.ensemble_stats, data.sources_status);
+    hideLoadingState('forecast-section');
+    
+  } catch (e) {
+    console.error('Forecast load error:', e);
+    showError('forecast-section', 'Failed to load forecast: ' + e.message);
+  }
+}
+ 
+// ===== RENDER FORECAST TIMELINE =====
+function renderForecastTimeline(forecast) {
+  var container = document.getElementById('forecast-timeline');
+  if (!container) return;
+  
+  var html = forecast.map(function(day, idx) {
+    var tempMax = day.parameters.temperature_max?.value || '--';
+    var rainfall = day.parameters.rainfall?.value || 0;
+    var rainfallProb = rainfall > 0 ? 'High' : 'Low';
+    var confidence = day.parameters.temperature_max?.confidence || 0;
+    var confidenceClass = confidence > 0.85 ? 'high' : confidence > 0.65 ? 'moderate' : 'low';
+    
+    var riskEmojis = [];
+    if (day.risk_factors?.heat_stress) riskEmojis.push('🔥');
+    if (day.risk_factors?.frost_risk) riskEmojis.push('❄️');
+    if (day.risk_factors?.excessive_rainfall) riskEmojis.push('⛈️');
+    if (day.risk_factors?.drought_stress) riskEmojis.push('🏜️');
+    
+    return '<div class="forecast-card" onclick="selectForecastDay(' + idx + ')" data-day-index="' + idx + '">' +
+      '<div class="day-header">' +
+        '<div class="day-name">' + day.day + '</div>' +
+        '<div class="date-small">' + formatDateShort(day.date) + '</div>' +
+      '</div>' +
+      '<div class="card-body">' +
+        '<div class="temperature">' +
+          '<div class="temp-value">' + tempMax + '°</div>' +
+          '<div class="temp-unit">C</div>' +
+        '</div>' +
+        '<div class="rainfall-section">' +
+          '<div class="rainfall-amount">' + rainfall.toFixed(1) + '<span class="unit">mm</span></div>' +
+          '<div class="rainfall-prob">' + rainfallProb + '</div>' +
+        '</div>' +
+        '<div class="confidence-badge ' + confidenceClass + '">' + (confidence * 100).toFixed(0) + '%</div>' +
+      '</div>' +
+      '<div class="risk-indicators">' + riskEmojis.join(' ') + '</div>' +
+    '</div>';
+  }).join('');
+  
+  container.innerHTML = html;
+  if (forecast.length > 0) {
+    document.querySelector('[data-day-index="0"]')?.classList.add('selected');
+  }
+}
+ 
+// ===== SELECT FORECAST DAY =====
+function selectForecastDay(dayIndex) {
+  document.querySelectorAll('.forecast-card').forEach(function(card) {
+    card.classList.remove('selected');
+  });
+  document.querySelector('[data-day-index="' + dayIndex + '"]')?.classList.add('selected');
+  document.getElementById('forecast-detail-section')?.scrollIntoView({ behavior: 'smooth' });
+}
+ 
+// ===== RENDER FORECAST DETAIL =====
+function renderForecastDetail(day, ensembleStats) {
+  var container = document.getElementById('forecast-detail');
+  if (!container) return;
+  
+  var tempMax = day.parameters.temperature_max;
+  var tempMin = day.parameters.temperature_min;
+  var rainfall = day.parameters.rainfall;
+  var wind = day.parameters.wind_speed;
+  var et0 = day.parameters.et0;
+  var soil = day.parameters.soil_moisture;
+  var irrigation = day.irrigation_advisory;
+  var risks = day.risk_factors;
+  
+  var html = '<div class="detail-header">' +
+    '<h3>' + day.day + ', ' + formatDateLong(day.date) + '</h3>' +
+    '<p class="ensemble-quality">Forecast Quality: <strong>' + (ensembleStats?.forecast_skill || 'moderate') + '</strong></p>' +
+  '</div>' +
+  '<div class="detail-grid">' +
+    '<div class="detail-card temperature-card">' +
+      '<div class="card-title">🌡️ Temperature</div>' +
+      '<div class="parameter-row">' +
+        '<div class="param"><span class="label">Max</span><span class="value">' + tempMax.value + '°C</span><span class="confidence ' + getConfidenceClass(tempMax.confidence) + '">' + (tempMax.confidence * 100).toFixed(0) + '%</span></div>' +
+        '<div class="param"><span class="label">Min</span><span class="value">' + tempMin.value + '°C</span><span class="confidence ' + getConfidenceClass(tempMin.confidence) + '">' + (tempMin.confidence * 100).toFixed(0) + '%</span></div>' +
+      '</div>' +
+      '<div class="range-display">Range: ' + tempMax.range[0].toFixed(1) + '°C - ' + tempMax.range[1].toFixed(1) + '°C</div>' +
+    '</div>' +
+    '<div class="detail-card rainfall-card">' +
+      '<div class="card-title">💧 Rainfall</div>' +
+      '<div class="parameter-row">' +
+        '<div class="param large"><span class="value">' + rainfall.value.toFixed(1) + 'mm</span><span class="confidence ' + getConfidenceClass(rainfall.confidence) + '">' + (rainfall.confidence * 100).toFixed(0) + '%</span></div>' +
+      '</div>' +
+      '<div class="detail-info"><div>Probability: ' + (parseInt(day.irrigation_advisory.prob_rain) * 100).toFixed(0) + '%</div><div>Expected range: ' + rainfall.range[0].toFixed(1) + ' - ' + rainfall.range[1].toFixed(1) + 'mm</div></div>' +
+    '</div>' +
+    '<div class="detail-card wind-card">' +
+      '<div class="card-title">💨 Wind Speed</div>' +
+      '<div class="parameter-row">' +
+        '<div class="param large"><span class="value">' + wind.value.toFixed(1) + 'km/h</span><span class="confidence ' + getConfidenceClass(wind.confidence) + '">' + (wind.confidence * 100).toFixed(0) + '%</span></div>' +
+      '</div>' +
+      '<div class="detail-info"><div>Max gust expected</div><div>Range: ' + wind.range[0].toFixed(1) + ' - ' + wind.range[1].toFixed(1) + 'km/h</div></div>' +
+    '</div>' +
+    '<div class="detail-card et0-card">' +
+      '<div class="card-title">💦 ET₀ (Evapotranspiration)</div>' +
+      '<div class="parameter-row">' +
+        '<div class="param large"><span class="value">' + et0.value.toFixed(2) + 'mm/day</span><span class="confidence ' + getConfidenceClass(et0.confidence) + '">' + (et0.confidence * 100).toFixed(0) + '%</span></div>' +
+      '</div>' +
+      '<div class="detail-info"><div>Water loss from soil & crops</div><div>Range: ' + et0.range[0].toFixed(2) + ' - ' + et0.range[1].toFixed(2) + 'mm/day</div></div>' +
+    '</div>' +
+    '<div class="detail-card soil-card">' +
+      '<div class="card-title">🌱 Soil Moisture</div>' +
+      '<div class="parameter-row">' +
+        '<div class="param large"><span class="value">' + soil.value.toFixed(1) + '%</span><span class="confidence ' + getConfidenceClass(soil.confidence) + '">' + (soil.confidence * 100).toFixed(0) + '%</span></div>' +
+      '</div>' +
+      '<div class="soil-meter"><div class="meter-bar" style="width: ' + soil.value + '%"></div></div>' +
+      '<div class="detail-info">' + (soil.value < 20 ? '⚠️ Low moisture' : soil.value < 40 ? '⚡ Moderate moisture' : '✅ Adequate moisture') + '</div>' +
+    '</div>' +
+  '</div>' +
+  '<div class="risk-section"><h4>⚠️ Risk Assessment</h4><div class="risk-grid">' +
+    '<div class="risk-item ' + (risks.heat_stress ? 'alert' : 'safe') + '"><div class="risk-icon">🔥</div><div class="risk-name">Heat Stress</div><div class="risk-status">' + (risks.heat_stress ? 'HIGH RISK' : 'Low risk') + '</div></div>' +
+    '<div class="risk-item ' + (risks.frost_risk ? 'alert' : 'safe') + '"><div class="risk-icon">❄️</div><div class="risk-name">Frost Risk</div><div class="risk-status">' + (risks.frost_risk ? 'RISK' : 'Safe') + '</div></div>' +
+    '<div class="risk-item ' + (risks.excessive_rainfall ? 'alert' : 'safe') + '"><div class="risk-icon">⛈️</div><div class="risk-name">Excessive Rain</div><div class="risk-status">' + (risks.excessive_rainfall ? 'RISK' : 'Normal') + '</div></div>' +
+    '<div class="risk-item ' + (risks.drought_stress ? 'alert' : 'safe') + '"><div class="risk-icon">🏜️</div><div class="risk-name">Drought Stress</div><div class="risk-status">' + (risks.drought_stress ? 'RISK' : 'Safe') + '</div></div>' +
+  '</div></div>' +
+  '<div class="irrigation-advisory"><h4>💧 Irrigation Advisory</h4><div class="advisory-main">' +
+    '<div class="suggested-amount"><div class="label">Suggested Water</div><div class="value">' + irrigation.suggested_mm.toFixed(1) + '<span class="unit">mm</span></div><div class="confidence ' + getConfidenceClass(irrigation.confidence) + '">Confidence: ' + (irrigation.confidence * 100).toFixed(0) + '%</div></div>' +
+    '<div class="advisory-reason"><strong>Reasoning:</strong><p>' + irrigation.reason + '</p></div>' +
+  '</div></div>' +
+  '<div class="contributions-section"><h4>📊 Source Contributions</h4><div class="contributions-list">' +
+    renderSourceContributions(day.parameters) +
+  '</div></div>';
+  
+  container.innerHTML = html;
+}
+ 
+// ===== RENDER SOURCE CONTRIBUTIONS =====
+function renderSourceContributions(parameters) {
+  var allContributions = {};
+  Object.entries(parameters).forEach(function(entry) {
+    var paramName = entry[0];
+    var param = entry[1];
+    if (param.contributions) {
+      param.contributions.forEach(function(contrib) {
+        var source = contrib.source;
+        if (!allContributions[source]) {
+          allContributions[source] = { weight: 0, params: [] };
+        }
+        allContributions[source].weight += parseFloat(contrib.weight_pct || 0);
+        allContributions[source].params.push(paramName);
+      });
+    }
+  });
+  
+  var html = Object.entries(allContributions)
+    .sort(function(a, b) { return parseFloat(b[1].weight) - parseFloat(a[1].weight); })
+    .map(function(entry) {
+      var source = entry[0];
+      var data = entry[1];
+      var pct = (data.weight / Object.keys(parameters).length).toFixed(0);
+      return '<div class="contribution-item"><div class="contribution-header"><span class="source-name">' + formatSourceName(source) + '</span><span class="source-weight">' + pct + '%</span></div><div class="contribution-bar"><div class="bar-fill" style="width: ' + pct + '%"></div></div></div>';
+    }).join('');
+  return html;
+}
+ 
+// ===== RENDER ENSEMBLE QUALITY =====
+function renderEnsembleQuality(ensembleStats, sourcesStatus) {
+  var container = document.getElementById('ensemble-quality');
+  if (!container) return;
+  
+  var html = '<div class="quality-header"><h4>📈 Forecast Ensemble Quality</h4><div class="skill-badge ' + (ensembleStats?.forecast_skill || 'moderate') + '">' + (ensembleStats?.forecast_skill || 'moderate').toUpperCase() + '</div></div>' +
+  '<div class="quality-stats"><div class="stat"><span class="label">Mean Confidence</span><span class="value">' + ((ensembleStats?.mean_confidence || 0) * 100).toFixed(0) + '%</span></div><div class="stat"><span class="label">Data Quality</span><span class="value">' + (ensembleStats?.data_quality || 'unknown') + '</span></div></div>' +
+  '<div class="sources-status"><h5>Data Sources</h5>';
+  
+  Object.entries(sourcesStatus || {}).forEach(function(entry) {
+    var source = entry[0];
+    var status = entry[1];
+    html += '<div class="source-status"><div class="source-indicator ' + status.toLowerCase() + '"></div><span class="source-label">' + formatSourceName(source) + '</span><span class="status-badge">' + status + '</span></div>';
+  });
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+ 
+// ===== HELPER FUNCTIONS =====
+function formatDateShort(dateStr) {
+  var date = new Date(dateStr + 'T00:00:00');
+  return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+}
+ 
+function formatDateLong(dateStr) {
+  var date = new Date(dateStr + 'T00:00:00');
+  return date.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+}
+ 
+function formatSourceName(source) {
+  var names = {'openmeteo': 'Open-Meteo', 'nasa_climatology': 'NASA Climatology', 'imd': 'IMD', 'ksndmc': 'KSNDMC'};
+  return names[source] || source;
+}
+ 
+function getConfidenceClass(confidence) {
+  if (confidence >= 0.85) return 'high';
+  if (confidence >= 0.65) return 'moderate';
+  return 'low';
+}
+ 
+function showLoadingState(elementId) {
+  var elem = document.getElementById(elementId);
+  if (elem) elem.innerHTML = '<div class="loading"><div class="spinner"></div> Loading forecast...</div>';
+}
+ 
+function hideLoadingState(elementId) {
+  var elem = document.getElementById(elementId);
+  if (elem) elem.classList.remove('loading');
+}
+ 
+function showError(elementId, message) {
+  var elem = document.getElementById(elementId);
+  if (elem) elem.innerHTML = '<div class="error-message"><strong>Error:</strong> ' + message + '</div>';
+}
+ 
+window.loadForecast = loadForecast;
+window.selectForecastDay = selectForecastDay;
+
 </script>
 </body>
 </html>`;
