@@ -433,6 +433,31 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   </header>
   <div class="sources-grid" id="sources-status"></div>
 </section>
+
+<!-- 7-Day Forecast Section -->
+<section id="forecast-section" style="display: none;">
+  <header style="margin-bottom: 1.5rem;">
+    <h2 style="margin: 0; font-size: 1.3rem;">📊 7-Day Forecast</h2>
+  </header>
+  
+  <!-- Forecast Timeline (7 cards) -->
+  <div id="forecast-timeline" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+    <p style="color: #aaa;">Loading forecast...</p>
+  </div>
+  
+  <!-- Forecast Detail Section -->
+  <div id="forecast-detail-section" style="margin-top: 2rem; padding: 1.5rem; background: var(--bg-card); border-radius: 8px; display: none;">
+    <div id="forecast-detail" style="min-height: 200px;">
+      <p style="color: #aaa;">Select a day to see details</p>
+    </div>
+  </div>
+  
+  <!-- Ensemble Quality Stats -->
+  <div id="ensemble-quality" style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-card); border-radius: 8px;">
+    <p style="color: #aaa;">Quality information will appear here</p>
+  </div>
+</section>
+
 <section id="error-section" style="display: none;">
   <div class="error-card">
     <strong>Error:</strong> <span id="error-message">Unable to fetch weather data</span>
@@ -968,75 +993,99 @@ function setStatus(kind, text) {
   async function loadForecast(lat, lon, crop) {
     if (!crop) crop = 'cotton';
     try {
-      showLoadingState('forecast-section');
+      var forecastSection = document.getElementById('forecast-section');
+      if (forecastSection) {
+        forecastSection.style.display = 'block';
+      }
+      
+      showLoadingState('forecast-timeline');
       
       var url = '/api/forecast/7-day?lat=' + lat + '&lon=' + lon + '&crop=' + crop;
-      var response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      console.log('🔄 Fetching:', url);
       
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      
+      var response = await fetch(url);
       var data = await response.json();
       
-      if (data.error) {
-        showError('forecast-section', data.error);
+      console.log('📦 Raw response:', data);
+      console.log('📦 data.forecast:', data.forecast);
+      console.log('📦 Type:', typeof data.forecast);
+      console.log('📦 Is Array:', Array.isArray(data.forecast));
+      console.log('📦 Has length:', data.forecast?.length);
+      
+      if (!data || !data.forecast) {
+        showError('forecast-timeline', 'No forecast in response');
+        console.error('❌ Missing forecast:', data);
         return;
       }
       
+      // Just render without validation
+      console.log('🎨 Calling renderForecastTimeline with:', data.forecast);
       renderForecastTimeline(data.forecast);
       
-      if (data.forecast && data.forecast.length > 0) {
+      if (data.forecast.length > 0) {
         renderForecastDetail(data.forecast[0], data.ensemble_stats);
       }
       
       renderEnsembleQuality(data.ensemble_stats, data.sources_status);
-      hideLoadingState('forecast-section');
+      hideLoadingState('forecast-timeline');
+      console.log('✅ Done');
       
     } catch (e) {
-      console.error('Forecast load error:', e);
-      showError('forecast-section', 'Failed to load forecast: ' + e.message);
+      console.error('❌ ERROR:', e.message, e.stack);
+      showError('forecast-timeline', e.message);
     }
   }
 
   function renderForecastTimeline(forecast) {
+    console.log('renderForecastTimeline START - forecast:', forecast);
     var container = document.getElementById('forecast-timeline');
-    if (!container) return;
+    console.log('🔍 Looking for container forecast-timeline:', container);
     
-    var html = forecast.map(function(day, idx) {
-      var tempMax = day.parameters.temperature_max?.value || '--';
-      var rainfall = day.parameters.rainfall?.value || 0;
-      var rainfallProb = rainfall > 0 ? 'High' : 'Low';
-      var confidence = day.parameters.temperature_max?.confidence || 0;
-      var confidenceClass = confidence > 0.85 ? 'high' : confidence > 0.65 ? 'moderate' : 'low';
-      
-      var riskEmojis = [];
-      if (day.risk_factors?.heat_stress) riskEmojis.push('🔥');
-      if (day.risk_factors?.frost_risk) riskEmojis.push('❄️');
-      if (day.risk_factors?.excessive_rainfall) riskEmojis.push('⛈️');
-      if (day.risk_factors?.drought_stress) riskEmojis.push('🏜️');
-      
-      return '<div class="forecast-card" onclick="selectForecastDay(' + idx + ')" data-day-index="' + idx + '">' +
-        '<div class="day-header">' +
-          '<div class="day-name">' + day.day + '</div>' +
-          '<div class="date-small">' + formatDateShort(day.date) + '</div>' +
-        '</div>' +
-        '<div class="card-body">' +
-          '<div class="temperature">' +
-            '<div class="temp-value">' + tempMax + '°</div>' +
-            '<div class="temp-unit">C</div>' +
-          '</div>' +
-          '<div class="rainfall-section">' +
-            '<div class="rainfall-amount">' + rainfall.toFixed(1) + '<span class="unit">mm</span></div>' +
-            '<div class="rainfall-prob">' + rainfallProb + '</div>' +
-          '</div>' +
-          '<div class="confidence-badge ' + confidenceClass + '">' + (confidence * 100).toFixed(0) + '%</div>' +
-        '</div>' +
-        '<div class="risk-indicators">' + riskEmojis.join(' ') + '</div>' +
-      '</div>';
-    }).join('');
+    if (!container) {
+      console.error('❌ No container found. Available elements:', document.querySelectorAll('[id*=forecast]'));
+      return;
+    }
     
-    container.innerHTML = html;
-    if (forecast.length > 0) {
-      document.querySelector('[data-day-index="0"]')?.classList.add('selected');
+    if (!forecast) {
+      console.error('❌ Forecast is falsy');
+      container.innerHTML = '<p style="color: #aaa; padding: 20px;">No forecast</p>';
+      return;
+    }
+    
+    console.log('📋 Forecast length:', forecast.length);
+    
+    if (forecast.length === 0) {
+      container.innerHTML = '<p style="color: #aaa; padding: 20px;">Empty forecast</p>';
+      return;
+    }
+    
+    try {
+      var cards = [];
+      for (var i = 0; i < forecast.length; i++) {
+        var day = forecast[i];
+        console.log('📅 Day', i, ':', day);
+        
+        var temp = day.parameters?.temperature_max?.value || 'N/A';
+        var rain = day.parameters?.rainfall?.value || 0;
+        var dayName = day.day || ('Day ' + (i + 1));
+        var dateStr = day.date || 'N/A';
+        
+        cards.push(
+          '<div class="forecast-card" style="padding: 15px; border: 1px solid #666; margin: 5px; border-radius: 8px; background: #333; text-align: center; cursor: pointer;">' +
+          '<div style="font-weight: bold; margin-bottom: 8px;">' + dayName + '</div>' +
+          '<div style="font-size: 0.9rem; color: #aaa; margin-bottom: 8px;">' + dateStr + '</div>' +
+          '<div style="font-size: 1.3rem; margin: 8px 0;">🌡️ ' + temp + '°C</div>' +
+          '<div style="font-size: 0.9rem;">💧 ' + rain.toFixed(1) + 'mm</div>' +
+          '</div>'
+        );
+      }
+      
+      container.innerHTML = cards.join('');
+      console.log('✅ Timeline rendered with', cards.length, 'cards');
+      
+    } catch (e) {
+      console.error('❌ Rendering error:', e);
+      container.innerHTML = '<p style="color: red; padding: 20px;">Error: ' + e.message + '</p>';
     }
   }
 
@@ -1050,29 +1099,32 @@ function setStatus(kind, text) {
 
   function renderForecastDetail(day, ensembleStats) {
     var container = document.getElementById('forecast-detail');
-    if (!container) return;
+    if (!container || !day || !day.parameters) {
+      if (container) container.innerHTML = '<p style="color: #aaa; padding: 20px;">No detail data available</p>';
+      return;
+    }
     
-    var tempMax = day.parameters.temperature_max;
-    var tempMin = day.parameters.temperature_min;
-    var rainfall = day.parameters.rainfall;
-    var wind = day.parameters.wind_speed;
-    var et0 = day.parameters.et0;
-    var soil = day.parameters.soil_moisture;
-    var irrigation = day.irrigation_advisory;
-    var risks = day.risk_factors;
+    var tempMax = day.parameters.temperature_max || { value: 0, confidence: 0, range: [0, 0] };
+    var tempMin = day.parameters.temperature_min || { value: 0, confidence: 0, range: [0, 0] };
+    var rainfall = day.parameters.rainfall || { value: 0, confidence: 0, range: [0, 0] };
+    var wind = day.parameters.wind_speed || { value: 0, confidence: 0, range: [0, 0] };
+    var et0 = day.parameters.et0 || { value: 0, confidence: 0, range: [0, 0] };
+    var soil = day.parameters.soil_moisture || { value: 0, confidence: 0, range: [0, 0] };
+    var irrigation = day.irrigation_advisory || { suggested_mm: 0, reason: 'N/A', prob_rain: 0, confidence: 0 };
+    var risks = day.risk_factors || { heat_stress: false, frost_risk: false, excessive_rainfall: false, drought_stress: false };
     
     var html = '<div class="detail-header">' +
-      '<h3>' + day.day + ', ' + formatDateLong(day.date) + '</h3>' +
+      '<h3>' + (day.day || 'Forecast') + ', ' + formatDateLong(day.date) + '</h3>' +
       '<p class="ensemble-quality">Forecast Quality: <strong>' + (ensembleStats?.forecast_skill || 'moderate') + '</strong></p>' +
     '</div>' +
     '<div class="detail-grid">' +
       '<div class="detail-card temperature-card">' +
         '<div class="card-title">🌡️ Temperature</div>' +
         '<div class="parameter-row">' +
-          '<div class="param"><span class="label">Max</span><span class="value">' + tempMax.value + '°C</span><span class="confidence ' + getConfidenceClass(tempMax.confidence) + '">' + (tempMax.confidence * 100).toFixed(0) + '%</span></div>' +
-          '<div class="param"><span class="label">Min</span><span class="value">' + tempMin.value + '°C</span><span class="confidence ' + getConfidenceClass(tempMin.confidence) + '">' + (tempMin.confidence * 100).toFixed(0) + '%</span></div>' +
+          '<div class="param"><span class="label">Max</span><span class="value">' + (tempMax.value || 0) + '°C</span><span class="confidence ' + getConfidenceClass(tempMax.confidence) + '">' + ((tempMax.confidence || 0) * 100).toFixed(0) + '%</span></div>' +
+          '<div class="param"><span class="label">Min</span><span class="value">' + (tempMin.value || 0) + '°C</span><span class="confidence ' + getConfidenceClass(tempMin.confidence) + '">' + ((tempMin.confidence || 0) * 100).toFixed(0) + '%</span></div>' +
         '</div>' +
-        '<div class="range-display">Range: ' + tempMax.range[0].toFixed(1) + '°C - ' + tempMax.range[1].toFixed(1) + '°C</div>' +
+        '<div class="range-display">Range: ' + ((tempMax.range?.[0] || 0).toFixed(1)) + '°C - ' + ((tempMax.range?.[1] || 0).toFixed(1)) + '°C</div>' +
       '</div>' +
       '<div class="detail-card rainfall-card">' +
         '<div class="card-title">💧 Rainfall</div>' +
@@ -1201,6 +1253,67 @@ function setStatus(kind, text) {
   function showError(elementId, message) {
     var elem = document.getElementById(elementId);
     if (elem) elem.innerHTML = '<div class="error-message"><strong>Error:</strong> ' + message + '</div>';
+  }
+
+  function renderForecastDetail(day, ensembleStats) {
+    console.log('renderForecastDetail - day:', day);
+    var container = document.getElementById('forecast-detail');
+    if (!container) {
+      console.warn('No forecast-detail container');
+      return;
+    }
+    
+    var temp = day.parameters?.temperature_max?.value || 'N/A';
+    var tempMin = day.parameters?.temperature_min?.value || 'N/A';
+    var rain = day.parameters?.rainfall?.value || 0;
+    var wind = day.parameters?.wind_speed?.value || 0;
+    
+    container.innerHTML = 
+      '<div style="padding: 20px;">' +
+      '<h3>' + (day.day || 'Day') + ' - ' + (day.date || 'Date') + '</h3>' +
+      '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">' +
+      '<div><strong>🌡️ Max Temp:</strong> ' + temp + '°C</div>' +
+      '<div><strong>❄️ Min Temp:</strong> ' + tempMin + '°C</div>' +
+      '<div><strong>💧 Rainfall:</strong> ' + rain.toFixed(1) + 'mm</div>' +
+      '<div><strong>💨 Wind:</strong> ' + wind.toFixed(1) + 'km/h</div>' +
+      '</div>' +
+      '</div>';
+  }
+  
+  function renderEnsembleQuality(ensembleStats, sourcesStatus) {
+    console.log('renderEnsembleQuality');
+    var container = document.getElementById('ensemble-quality');
+    if (!container) {
+      console.warn('No ensemble-quality container');
+      return;
+    }
+    
+    var skill = ensembleStats?.forecast_skill || 'moderate';
+    var confidence = ensembleStats?.mean_confidence || 0;
+    
+    container.innerHTML = 
+      '<div style="padding: 15px;">' +
+      '<h4>📈 Forecast Quality: ' + skill.toUpperCase() + '</h4>' +
+      '<div style="margin-top: 10px;">Mean Confidence: ' + (confidence * 100).toFixed(0) + '%</div>' +
+      '</div>';
+  }
+  
+  function formatDateShort(dateStr) {
+    try {
+      var date = new Date(dateStr + 'T00:00:00');
+      return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+    } catch (e) {
+      return dateStr;
+    }
+  }
+  
+  function formatDateLong(dateStr) {
+    try {
+      var date = new Date(dateStr + 'T00:00:00');
+      return date.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    } catch (e) {
+      return dateStr;
+    }
   }
 
   window.loadForecast = loadForecast;
