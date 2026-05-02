@@ -1,5 +1,7 @@
 // dashboard.js — production-ready agro-meteorological dashboard with ensemble ranking
 // Bilingual: English & ಕನ್ನಡ (Kannada)
+// ✅ CLEANED: No duplicate functions, safe range access, production-ready
+
 export const DASHBOARD_HTML = /* html */ `<!doctype html>
 <html lang="en">
 <head>
@@ -293,15 +295,6 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   }
   .skeleton::after { content: "▊"; animation: blink 1s step-end infinite; }
   @keyframes blink { 50% { opacity: 0; } }
-  @media (max-width: 720px) {
-    body { padding: 1rem 0.85rem 3rem; }
-    section { padding: 1.1rem; }
-    .param-row { grid-template-columns: 1fr; gap: 0.5rem; }
-    .locbar { gap: 0.4rem; padding: 0.65rem; }
-    .locbar input { width: 5.5rem; font-size: 0.75rem; }
-    header { flex-direction: column; gap: 0.5rem; }
-    .header-right { align-items: flex-start; }
-  }
   #map-container {
     display: none;
     height: 400px;
@@ -371,9 +364,14 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
     font-size: 0.65rem;
   }
   @media (max-width: 720px) {
-    #map-container {
-      height: 250px;
-    }
+    body { padding: 1rem 0.85rem 3rem; }
+    section { padding: 1.1rem; }
+    .param-row { grid-template-columns: 1fr; gap: 0.5rem; }
+    .locbar { gap: 0.4rem; padding: 0.65rem; }
+    .locbar input { width: 5.5rem; font-size: 0.75rem; }
+    header { flex-direction: column; gap: 0.5rem; }
+    .header-right { align-items: flex-start; }
+    #map-container { height: 250px; }
   }
 </style>
 </head>
@@ -433,31 +431,20 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   </header>
   <div class="sources-grid" id="sources-status"></div>
 </section>
-
-<!-- 7-Day Forecast Section -->
 <section id="forecast-section" style="display: none;">
   <header style="margin-bottom: 1.5rem;">
     <h2 style="margin: 0; font-size: 1.3rem;">📊 7-Day Forecast</h2>
   </header>
-  
-  <!-- Forecast Timeline (7 cards) -->
   <div id="forecast-timeline" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
     <p style="color: #aaa;">Loading forecast...</p>
   </div>
-  
-  <!-- Forecast Detail Section -->
-  <div id="forecast-detail-section" style="margin-top: 2rem; padding: 1.5rem; background: var(--bg-card); border-radius: 8px; display: none;">
-    <div id="forecast-detail" style="min-height: 200px;">
-      <p style="color: #aaa;">Select a day to see details</p>
-    </div>
+  <div id="forecast-detail-section" style="margin-top: 2rem; display: none;">
+    <div id="forecast-detail" style="min-height: 200px;"></div>
   </div>
-  
-  <!-- Ensemble Quality Stats -->
-  <div id="ensemble-quality" style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-card); border-radius: 8px;">
+  <div id="ensemble-quality" style="margin-top: 1.5rem; padding: 1rem; background: var(--surface-2); border-radius: 8px;">
     <p style="color: #aaa;">Quality information will appear here</p>
   </div>
 </section>
-
 <section id="error-section" style="display: none;">
   <div class="error-card">
     <strong>Error:</strong> <span id="error-message">Unable to fetch weather data</span>
@@ -602,7 +589,6 @@ function updateUIText() {
   document.getElementById('footer-sources').innerHTML = t('footerSources');
   document.getElementById('footer-disclaimer').textContent = t('footerDisclaimer');
   
-  // Update language font class
   if (currentLang === 'kn') {
     document.body.classList.add('kannada');
   } else {
@@ -639,7 +625,6 @@ function setStatus(kind, text) {
   dot.style.boxShadow = '0 0 8px ' + (colors[kind] || 'var(--amber)');
 }
 
-// Original script code with parameterName() replacement
 (() => {
   const state = {
     lat: 12.9716,
@@ -845,10 +830,10 @@ function setStatus(kind, text) {
         humidity: "%",
         et0: "mm/day",
       }[param] ?? "";
-      const range = result.range[0] != null && result.range[1] != null
+      const range = result.range && result.range[0] != null && result.range[1] != null
         ? result.range[0] + '–' + result.range[1] + unit
         : "";
-      const sourceChips = result.contributions.map((c) => {
+      const sourceChips = (result.contributions || []).map((c) => {
         const isPrimary = c.source === result.primary ? 'primary' : '';
         const pct = (c.weight_pct * 100).toFixed(0);
         return '<span class="source-chip ' + isPrimary + '">' +
@@ -988,336 +973,194 @@ function setStatus(kind, text) {
   load();
   loadForecast(state.lat, state.lon, 'cotton');
 })();
+
+// ===== FORECAST FUNCTIONS (Phase 1 - CLEANED & FIXED) =====
+
+async function loadForecast(lat, lon, crop) {
+  if (!crop) crop = 'cotton';
+  try {
+    var forecastSection = document.getElementById('forecast-section');
+    if (forecastSection) {
+      forecastSection.style.display = 'block';
+    }
+    
+    showLoadingState('forecast-timeline');
+    
+    var url = '/api/forecast/7-day?lat=' + lat + '&lon=' + lon + '&crop=' + crop;
+    var response = await fetch(url);
+    var data = await response.json();
+    
+    if (!data || !data.forecast) {
+      showError('forecast-timeline', 'No forecast in response');
+      return;
+    }
+    
+    renderForecastTimeline(data.forecast);
+    if (data.forecast.length > 0) {
+      renderForecastDetail(data.forecast[0], data.ensemble_stats);
+    }
+    renderEnsembleQuality(data.ensemble_stats, data.sources_status);
+    hideLoadingState('forecast-timeline');
+    
+  } catch (e) {
+    console.error('Forecast error:', e);
+    showError('forecast-timeline', e.message);
+  }
+}
+
+function renderForecastTimeline(forecast) {
+  var container = document.getElementById('forecast-timeline');
+  if (!container || !forecast || forecast.length === 0) return;
   
-  // ===== FORECAST FUNCTIONS (Phase 1) =====
-  async function loadForecast(lat, lon, crop) {
-    if (!crop) crop = 'cotton';
-    try {
-      var forecastSection = document.getElementById('forecast-section');
-      if (forecastSection) {
-        forecastSection.style.display = 'block';
-      }
-      
-      showLoadingState('forecast-timeline');
-      
-      var url = '/api/forecast/7-day?lat=' + lat + '&lon=' + lon + '&crop=' + crop;
-      console.log('🔄 Fetching:', url);
-      
-      var response = await fetch(url);
-      var data = await response.json();
-      
-      console.log('📦 Raw response:', data);
-      console.log('📦 data.forecast:', data.forecast);
-      console.log('📦 Type:', typeof data.forecast);
-      console.log('📦 Is Array:', Array.isArray(data.forecast));
-      console.log('📦 Has length:', data.forecast?.length);
-      
-      if (!data || !data.forecast) {
-        showError('forecast-timeline', 'No forecast in response');
-        console.error('❌ Missing forecast:', data);
-        return;
-      }
-      
-      // Just render without validation
-      console.log('🎨 Calling renderForecastTimeline with:', data.forecast);
-      renderForecastTimeline(data.forecast);
-      
-      if (data.forecast.length > 0) {
-        renderForecastDetail(data.forecast[0], data.ensemble_stats);
-      }
-      
-      renderEnsembleQuality(data.ensemble_stats, data.sources_status);
-      hideLoadingState('forecast-timeline');
-      console.log('✅ Done');
-      
-    } catch (e) {
-      console.error('❌ ERROR:', e.message, e.stack);
-      showError('forecast-timeline', e.message);
-    }
+  var cards = [];
+  for (var i = 0; i < forecast.length; i++) {
+    var day = forecast[i];
+    var temp = day.parameters?.temperature_max?.value || '--';
+    var rain = day.parameters?.rainfall?.value || 0;
+    
+    cards.push(
+      '<div style="padding: 15px; border: 1px solid #666; border-radius: 8px; background: #333; text-align: center; cursor: pointer;">' +
+      '<div style="font-weight: bold; margin-bottom: 8px;">' + (day.day || 'Day') + '</div>' +
+      '<div style="font-size: 0.9rem; color: #aaa; margin-bottom: 8px;">' + day.date + '</div>' +
+      '<div style="font-size: 1.3rem; margin: 8px 0;">🌡️ ' + temp + '°C</div>' +
+      '<div style="font-size: 0.9rem;">💧 ' + rain.toFixed(1) + 'mm</div>' +
+      '</div>'
+    );
   }
+  
+  container.innerHTML = cards.join('');
+}
 
-  function renderForecastTimeline(forecast) {
-    console.log('renderForecastTimeline START - forecast:', forecast);
-    var container = document.getElementById('forecast-timeline');
-    console.log('🔍 Looking for container forecast-timeline:', container);
-    
-    if (!container) {
-      console.error('❌ No container found. Available elements:', document.querySelectorAll('[id*=forecast]'));
-      return;
-    }
-    
-    if (!forecast) {
-      console.error('❌ Forecast is falsy');
-      container.innerHTML = '<p style="color: #aaa; padding: 20px;">No forecast</p>';
-      return;
-    }
-    
-    console.log('📋 Forecast length:', forecast.length);
-    
-    if (forecast.length === 0) {
-      container.innerHTML = '<p style="color: #aaa; padding: 20px;">Empty forecast</p>';
-      return;
-    }
-    
-    try {
-      var cards = [];
-      for (var i = 0; i < forecast.length; i++) {
-        var day = forecast[i];
-        console.log('📅 Day', i, ':', day);
-        
-        var temp = day.parameters?.temperature_max?.value || 'N/A';
-        var rain = day.parameters?.rainfall?.value || 0;
-        var dayName = day.day || ('Day ' + (i + 1));
-        var dateStr = day.date || 'N/A';
-        
-        cards.push(
-          '<div class="forecast-card" style="padding: 15px; border: 1px solid #666; margin: 5px; border-radius: 8px; background: #333; text-align: center; cursor: pointer;">' +
-          '<div style="font-weight: bold; margin-bottom: 8px;">' + dayName + '</div>' +
-          '<div style="font-size: 0.9rem; color: #aaa; margin-bottom: 8px;">' + dateStr + '</div>' +
-          '<div style="font-size: 1.3rem; margin: 8px 0;">🌡️ ' + temp + '°C</div>' +
-          '<div style="font-size: 0.9rem;">💧 ' + rain.toFixed(1) + 'mm</div>' +
-          '</div>'
-        );
-      }
-      
-      container.innerHTML = cards.join('');
-      console.log('✅ Timeline rendered with', cards.length, 'cards');
-      
-    } catch (e) {
-      console.error('❌ Rendering error:', e);
-      container.innerHTML = '<p style="color: red; padding: 20px;">Error: ' + e.message + '</p>';
-    }
-  }
+function selectForecastDay(dayIndex) {
+  document.querySelectorAll('.forecast-card').forEach(function(card) {
+    card.classList.remove('selected');
+  });
+  document.querySelector('[data-day-index="' + dayIndex + '"]')?.classList.add('selected');
+  document.getElementById('forecast-detail-section')?.scrollIntoView({ behavior: 'smooth' });
+}
 
-  function selectForecastDay(dayIndex) {
-    document.querySelectorAll('.forecast-card').forEach(function(card) {
-      card.classList.remove('selected');
-    });
-    document.querySelector('[data-day-index="' + dayIndex + '"]')?.classList.add('selected');
-    document.getElementById('forecast-detail-section')?.scrollIntoView({ behavior: 'smooth' });
-  }
-
-  function renderForecastDetail(day, ensembleStats) {
-    var container = document.getElementById('forecast-detail');
-    if (!container || !day || !day.parameters) {
-      if (container) container.innerHTML = '<p style="color: #aaa; padding: 20px;">No detail data available</p>';
-      return;
-    }
-    
-    var tempMax = day.parameters.temperature_max || { value: 0, confidence: 0, range: [0, 0] };
-    var tempMin = day.parameters.temperature_min || { value: 0, confidence: 0, range: [0, 0] };
-    var rainfall = day.parameters.rainfall || { value: 0, confidence: 0, range: [0, 0] };
-    var wind = day.parameters.wind_speed || { value: 0, confidence: 0, range: [0, 0] };
-    var et0 = day.parameters.et0 || { value: 0, confidence: 0, range: [0, 0] };
-    var soil = day.parameters.soil_moisture || { value: 0, confidence: 0, range: [0, 0] };
-    var irrigation = day.irrigation_advisory || { suggested_mm: 0, reason: 'N/A', prob_rain: 0, confidence: 0 };
-    var risks = day.risk_factors || { heat_stress: false, frost_risk: false, excessive_rainfall: false, drought_stress: false };
-    
-    var html = '<div class="detail-header">' +
-      '<h3>' + (day.day || 'Forecast') + ', ' + formatDateLong(day.date) + '</h3>' +
-      '<p class="ensemble-quality">Forecast Quality: <strong>' + (ensembleStats?.forecast_skill || 'moderate') + '</strong></p>' +
+// ✅ SAFE renderForecastDetail WITH OPTIONAL CHAINING
+function renderForecastDetail(day, ensembleStats) {
+  var container = document.getElementById('forecast-detail');
+  if (!container || !day || !day.parameters) return;
+  
+  var tempMax = day.parameters.temperature_max || { value: 0, confidence: 0, range: [0, 0] };
+  var tempMin = day.parameters.temperature_min || { value: 0, confidence: 0, range: [0, 0] };
+  var rainfall = day.parameters.rainfall || { value: 0, confidence: 0, range: [0, 0] };
+  var wind = day.parameters.wind_speed || { value: 0, confidence: 0, range: [0, 0] };
+  var et0 = day.parameters.et0 || { value: 0, confidence: 0, range: [0, 0] };
+  
+  // ✅ SAFE RANGE ACCESS using optional chaining + nullish coalescing
+  var tempMaxMin = ((tempMax.range?.[0] ?? 0).toFixed(1));
+  var tempMaxMax = ((tempMax.range?.[1] ?? 0).toFixed(1));
+  var rainfallMin = ((rainfall.range?.[0] ?? 0).toFixed(1));
+  var rainfallMax = ((rainfall.range?.[1] ?? 0).toFixed(1));
+  var windMin = ((wind.range?.[0] ?? 0).toFixed(1));
+  var windMax = ((wind.range?.[1] ?? 0).toFixed(1));
+  var et0Min = ((et0.range?.[0] ?? 0).toFixed(2));
+  var et0Max = ((et0.range?.[1] ?? 0).toFixed(2));
+  
+  container.innerHTML = 
+    '<div style="padding: 20px;">' +
+    '<h3>' + (day.day || 'Day') + ' - ' + (day.date || 'Date') + '</h3>' +
+    '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">' +
+    '<div><strong>🌡️ Max Temp:</strong> ' + (tempMax.value || 0).toFixed(1) + '°C<br/>' +
+    '<small style="color: #999;">Range: ' + tempMaxMin + '–' + tempMaxMax + '°C</small></div>' +
+    '<div><strong>❄️ Min Temp:</strong> ' + (tempMin.value || 0).toFixed(1) + '°C<br/>' +
+    '<small style="color: #999;">Range: ' + ((tempMin.range?.[0] ?? 0).toFixed(1)) + '–' + ((tempMin.range?.[1] ?? 0).toFixed(1)) + '°C</small></div>' +
+    '<div><strong>💧 Rainfall:</strong> ' + (rainfall.value || 0).toFixed(1) + 'mm<br/>' +
+    '<small style="color: #999;">Range: ' + rainfallMin + '–' + rainfallMax + 'mm</small></div>' +
+    '<div><strong>💨 Wind:</strong> ' + (wind.value || 0).toFixed(1) + 'km/h<br/>' +
+    '<small style="color: #999;">Range: ' + windMin + '–' + windMax + 'km/h</small></div>' +
+    '<div><strong>💦 ET₀:</strong> ' + (et0.value || 0).toFixed(2) + 'mm/day<br/>' +
+    '<small style="color: #999;">Range: ' + et0Min + '–' + et0Max + 'mm/day</small></div>' +
     '</div>' +
-    '<div class="detail-grid">' +
-      '<div class="detail-card temperature-card">' +
-        '<div class="card-title">🌡️ Temperature</div>' +
-        '<div class="parameter-row">' +
-          '<div class="param"><span class="label">Max</span><span class="value">' + (tempMax.value || 0) + '°C</span><span class="confidence ' + getConfidenceClass(tempMax.confidence) + '">' + ((tempMax.confidence || 0) * 100).toFixed(0) + '%</span></div>' +
-          '<div class="param"><span class="label">Min</span><span class="value">' + (tempMin.value || 0) + '°C</span><span class="confidence ' + getConfidenceClass(tempMin.confidence) + '">' + ((tempMin.confidence || 0) * 100).toFixed(0) + '%</span></div>' +
-        '</div>' +
-        '<div class="range-display">Range: ' + ((tempMax.range?.[0] || 0).toFixed(1)) + '°C - ' + ((tempMax.range?.[1] || 0).toFixed(1)) + '°C</div>' +
-      '</div>' +
-      '<div class="detail-card rainfall-card">' +
-        '<div class="card-title">💧 Rainfall</div>' +
-        '<div class="parameter-row">' +
-          '<div class="param large"><span class="value">' + rainfall.value.toFixed(1) + 'mm</span><span class="confidence ' + getConfidenceClass(rainfall.confidence) + '">' + (rainfall.confidence * 100).toFixed(0) + '%</span></div>' +
-        '</div>' +
-        '<div class="detail-info"><div>Probability: ' + (parseInt(day.irrigation_advisory.prob_rain) * 100).toFixed(0) + '%</div><div>Expected range: ' + rainfall.range[0].toFixed(1) + ' - ' + rainfall.range[1].toFixed(1) + 'mm</div></div>' +
-      '</div>' +
-      '<div class="detail-card wind-card">' +
-        '<div class="card-title">💨 Wind Speed</div>' +
-        '<div class="parameter-row">' +
-          '<div class="param large"><span class="value">' + wind.value.toFixed(1) + 'km/h</span><span class="confidence ' + getConfidenceClass(wind.confidence) + '">' + (wind.confidence * 100).toFixed(0) + '%</span></div>' +
-        '</div>' +
-        '<div class="detail-info"><div>Max gust expected</div><div>Range: ' + wind.range[0].toFixed(1) + ' - ' + wind.range[1].toFixed(1) + 'km/h</div></div>' +
-      '</div>' +
-      '<div class="detail-card et0-card">' +
-        '<div class="card-title">💦 ET₀ (Evapotranspiration)</div>' +
-        '<div class="parameter-row">' +
-          '<div class="param large"><span class="value">' + et0.value.toFixed(2) + 'mm/day</span><span class="confidence ' + getConfidenceClass(et0.confidence) + '">' + (et0.confidence * 100).toFixed(0) + '%</span></div>' +
-        '</div>' +
-        '<div class="detail-info"><div>Water loss from soil & crops</div><div>Range: ' + et0.range[0].toFixed(2) + ' - ' + et0.range[1].toFixed(2) + 'mm/day</div></div>' +
-      '</div>' +
-      '<div class="detail-card soil-card">' +
-        '<div class="card-title">🌱 Soil Moisture</div>' +
-        '<div class="parameter-row">' +
-          '<div class="param large"><span class="value">' + soil.value.toFixed(1) + '%</span><span class="confidence ' + getConfidenceClass(soil.confidence) + '">' + (soil.confidence * 100).toFixed(0) + '%</span></div>' +
-        '</div>' +
-        '<div class="soil-meter"><div class="meter-bar" style="width: ' + soil.value + '%"></div></div>' +
-        '<div class="detail-info">' + (soil.value < 20 ? '⚠️ Low moisture' : soil.value < 40 ? '⚡ Moderate moisture' : '✅ Adequate moisture') + '</div>' +
-      '</div>' +
-    '</div>' +
-    '<div class="risk-section"><h4>⚠️ Risk Assessment</h4><div class="risk-grid">' +
-      '<div class="risk-item ' + (risks.heat_stress ? 'alert' : 'safe') + '"><div class="risk-icon">🔥</div><div class="risk-name">Heat Stress</div><div class="risk-status">' + (risks.heat_stress ? 'HIGH RISK' : 'Low risk') + '</div></div>' +
-      '<div class="risk-item ' + (risks.frost_risk ? 'alert' : 'safe') + '"><div class="risk-icon">❄️</div><div class="risk-name">Frost Risk</div><div class="risk-status">' + (risks.frost_risk ? 'RISK' : 'Safe') + '</div></div>' +
-      '<div class="risk-item ' + (risks.excessive_rainfall ? 'alert' : 'safe') + '"><div class="risk-icon">⛈️</div><div class="risk-name">Excessive Rain</div><div class="risk-status">' + (risks.excessive_rainfall ? 'RISK' : 'Normal') + '</div></div>' +
-      '<div class="risk-item ' + (risks.drought_stress ? 'alert' : 'safe') + '"><div class="risk-icon">🏜️</div><div class="risk-name">Drought Stress</div><div class="risk-status">' + (risks.drought_stress ? 'RISK' : 'Safe') + '</div></div>' +
-    '</div></div>' +
-    '<div class="irrigation-advisory"><h4>💧 Irrigation Advisory</h4><div class="advisory-main">' +
-      '<div class="suggested-amount"><div class="label">Suggested Water</div><div class="value">' + irrigation.suggested_mm.toFixed(1) + '<span class="unit">mm</span></div><div class="confidence ' + getConfidenceClass(irrigation.confidence) + '">Confidence: ' + (irrigation.confidence * 100).toFixed(0) + '%</div></div>' +
-      '<div class="advisory-reason"><strong>Reasoning:</strong><p>' + irrigation.reason + '</p></div>' +
-    '</div></div>' +
-    '<div class="contributions-section"><h4>📊 Source Contributions</h4><div class="contributions-list">' +
-      renderSourceContributions(day.parameters) +
-    '</div></div>';
-    
-    container.innerHTML = html;
-  }
+    '</div>';
+}
 
-  function renderSourceContributions(parameters) {
-    var allContributions = {};
-    Object.entries(parameters).forEach(function(entry) {
-      var paramName = entry[0];
-      var param = entry[1];
-      if (param.contributions) {
-        param.contributions.forEach(function(contrib) {
-          var source = contrib.source;
-          if (!allContributions[source]) {
-            allContributions[source] = { weight: 0, params: [] };
-          }
-          allContributions[source].weight += parseFloat(contrib.weight_pct || 0);
-          allContributions[source].params.push(paramName);
-        });
-      }
-    });
-    
-    var html = Object.entries(allContributions)
-      .sort(function(a, b) { return parseFloat(b[1].weight) - parseFloat(a[1].weight); })
-      .map(function(entry) {
-        var source = entry[0];
-        var data = entry[1];
-        var pct = (data.weight / Object.keys(parameters).length).toFixed(0);
-        return '<div class="contribution-item"><div class="contribution-header"><span class="source-name">' + formatSourceName(source) + '</span><span class="source-weight">' + pct + '%</span></div><div class="contribution-bar"><div class="bar-fill" style="width: ' + pct + '%"></div></div></div>';
-      }).join('');
-    return html;
-  }
-
-  function renderEnsembleQuality(ensembleStats, sourcesStatus) {
-    var container = document.getElementById('ensemble-quality');
-    if (!container) return;
-    
-    var html = '<div class="quality-header"><h4>📈 Forecast Ensemble Quality</h4><div class="skill-badge ' + (ensembleStats?.forecast_skill || 'moderate') + '">' + (ensembleStats?.forecast_skill || 'moderate').toUpperCase() + '</div></div>' +
-    '<div class="quality-stats"><div class="stat"><span class="label">Mean Confidence</span><span class="value">' + ((ensembleStats?.mean_confidence || 0) * 100).toFixed(0) + '%</span></div><div class="stat"><span class="label">Data Quality</span><span class="value">' + (ensembleStats?.data_quality || 'unknown') + '</span></div></div>' +
-    '<div class="sources-status"><h5>Data Sources</h5>';
-    
+// ✅ SINGLE renderEnsembleQuality (NO DUPLICATES)
+function renderEnsembleQuality(ensembleStats, sourcesStatus) {
+  var container = document.getElementById('ensemble-quality');
+  if (!container) return;
+  
+  var skill = ensembleStats?.forecast_skill || 'moderate';
+  var confidence = ensembleStats?.mean_confidence || 0;
+  
+  var html = 
+    '<div style="padding: 15px;">' +
+    '<h4 style="margin: 0 0 10px 0;">📈 Forecast Quality: <strong>' + skill.toUpperCase() + '</strong></h4>' +
+    '<div style="margin-bottom: 15px;">Mean Confidence: <strong>' + (confidence * 100).toFixed(0) + '%</strong></div>';
+  
+  if (sourcesStatus && Object.keys(sourcesStatus).length > 0) {
+    html += '<div style="font-size: 0.85rem; color: #aaa;"><strong>Data Sources:</strong><br/>';
     Object.entries(sourcesStatus || {}).forEach(function(entry) {
       var source = entry[0];
       var status = entry[1];
-      html += '<div class="source-status"><div class="source-indicator ' + status.toLowerCase() + '"></div><span class="source-label">' + formatSourceName(source) + '</span><span class="status-badge">' + status + '</span></div>';
+      var statusEmoji = status.toLowerCase() === 'fulfilled' ? '✓' : '✗';
+      html += '  ' + statusEmoji + ' ' + formatSourceName(source) + ': ' + status + '<br/>';
     });
-    
     html += '</div>';
-    container.innerHTML = html;
   }
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
 
-  function formatDateShort(dateStr) {
+// ✅ HELPER FUNCTIONS (NO DUPLICATES)
+
+function formatDateShort(dateStr) {
+  try {
     var date = new Date(dateStr + 'T00:00:00');
     return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+  } catch (e) {
+    return dateStr;
   }
+}
 
-  function formatDateLong(dateStr) {
+function formatDateLong(dateStr) {
+  try {
     var date = new Date(dateStr + 'T00:00:00');
     return date.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  } catch (e) {
+    return dateStr;
   }
+}
 
-  function formatSourceName(source) {
-    var names = {'openmeteo': 'Open-Meteo', 'nasa_climatology': 'NASA Climatology', 'imd': 'IMD', 'ksndmc': 'KSNDMC'};
-    return names[source] || source;
-  }
+function formatSourceName(source) {
+  var names = {
+    'openmeteo': 'Open-Meteo',
+    'nasa-power': 'NASA POWER',
+    'nasa_climatology': 'NASA Climatology',
+    'imd': 'IMD',
+    'ksndmc': 'KSNDMC'
+  };
+  return names[source] || source;
+}
 
-  function getConfidenceClass(confidence) {
-    if (confidence >= 0.85) return 'high';
-    if (confidence >= 0.65) return 'moderate';
-    return 'low';
-  }
+function getConfidenceClass(confidence) {
+  if (confidence >= 0.85) return 'high';
+  if (confidence >= 0.65) return 'moderate';
+  return 'low';
+}
 
-  function showLoadingState(elementId) {
-    var elem = document.getElementById(elementId);
-    if (elem) elem.innerHTML = '<div class="loading"><div class="spinner"></div> Loading forecast...</div>';
-  }
+function showLoadingState(elementId) {
+  var elem = document.getElementById(elementId);
+  if (elem) elem.innerHTML = '<div style="padding: 20px; color: #aaa;">⏳ Loading forecast...</div>';
+}
 
-  function hideLoadingState(elementId) {
-    var elem = document.getElementById(elementId);
-    if (elem) elem.classList.remove('loading');
-  }
+function hideLoadingState(elementId) {
+  var elem = document.getElementById(elementId);
+  if (elem) elem.classList.remove('loading');
+}
 
-  function showError(elementId, message) {
-    var elem = document.getElementById(elementId);
-    if (elem) elem.innerHTML = '<div class="error-message"><strong>Error:</strong> ' + message + '</div>';
-  }
+function showError(elementId, message) {
+  var elem = document.getElementById(elementId);
+  if (elem) elem.innerHTML = '<div style="padding: 20px; color: #d67a4f;"><strong>❌ Error:</strong> ' + message + '</div>';
+}
 
-  function renderForecastDetail(day, ensembleStats) {
-    console.log('renderForecastDetail - day:', day);
-    var container = document.getElementById('forecast-detail');
-    if (!container) {
-      console.warn('No forecast-detail container');
-      return;
-    }
-    
-    var temp = day.parameters?.temperature_max?.value || 'N/A';
-    var tempMin = day.parameters?.temperature_min?.value || 'N/A';
-    var rain = day.parameters?.rainfall?.value || 0;
-    var wind = day.parameters?.wind_speed?.value || 0;
-    
-    container.innerHTML = 
-      '<div style="padding: 20px;">' +
-      '<h3>' + (day.day || 'Day') + ' - ' + (day.date || 'Date') + '</h3>' +
-      '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">' +
-      '<div><strong>🌡️ Max Temp:</strong> ' + temp + '°C</div>' +
-      '<div><strong>❄️ Min Temp:</strong> ' + tempMin + '°C</div>' +
-      '<div><strong>💧 Rainfall:</strong> ' + rain.toFixed(1) + 'mm</div>' +
-      '<div><strong>💨 Wind:</strong> ' + wind.toFixed(1) + 'km/h</div>' +
-      '</div>' +
-      '</div>';
-  }
-  
-  function renderEnsembleQuality(ensembleStats, sourcesStatus) {
-    console.log('renderEnsembleQuality');
-    var container = document.getElementById('ensemble-quality');
-    if (!container) {
-      console.warn('No ensemble-quality container');
-      return;
-    }
-    
-    var skill = ensembleStats?.forecast_skill || 'moderate';
-    var confidence = ensembleStats?.mean_confidence || 0;
-    
-    container.innerHTML = 
-      '<div style="padding: 15px;">' +
-      '<h4>📈 Forecast Quality: ' + skill.toUpperCase() + '</h4>' +
-      '<div style="margin-top: 10px;">Mean Confidence: ' + (confidence * 100).toFixed(0) + '%</div>' +
-      '</div>';
-  }
-  
-  function formatDateShort(dateStr) {
-    try {
-      var date = new Date(dateStr + 'T00:00:00');
-      return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
-    } catch (e) {
-      return dateStr;
-    }
-  }
-  
-  function formatDateLong(dateStr) {
-    try {
-      var date = new Date(dateStr + 'T00:00:00');
-      return date.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    } catch (e) {
-      return dateStr;
-    }
-  }
-
-  window.loadForecast = loadForecast;
-  window.selectForecastDay = selectForecastDay;
+// ✅ EXPORT FOR GLOBAL USE
+window.loadForecast = loadForecast;
+window.selectForecastDay = selectForecastDay;
 </script>
 </body>
 </html>`;
